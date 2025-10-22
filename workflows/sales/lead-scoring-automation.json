@@ -1,0 +1,194 @@
+{
+  "id": "workflow-sales-001",
+  "name": "Intelligent Lead Scoring",
+  "description": "Automatically score and qualify leads using AI",
+  "category": "sales-automation",
+  "active": true,
+  "nodes": [
+    {
+      "id": "trigger-1",
+      "type": "trigger",
+      "name": "New Lead Webhook",
+      "parameters": {
+        "triggerType": "webhook",
+        "path": "/webhook/lead-created"
+      },
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "ai-research-1",
+      "type": "ai-agent",
+      "name": "Research Lead Company",
+      "parameters": {
+        "agentType": "research",
+        "action": "researchCompany",
+        "input": "{{lead.company}}"
+      },
+      "position": { "x": 300, "y": 200 }
+    },
+    {
+      "id": "ai-research-2",
+      "type": "ai-agent",
+      "name": "Enrich Lead Data",
+      "parameters": {
+        "agentType": "research",
+        "action": "enrichLead",
+        "input": {
+          "email": "{{lead.email}}",
+          "company": "{{lead.company}}",
+          "name": "{{lead.name}}"
+        }
+      },
+      "position": { "x": 500, "y": 200 }
+    },
+    {
+      "id": "ai-sales-1",
+      "type": "ai-agent",
+      "name": "BANT Qualification",
+      "parameters": {
+        "agentType": "sales",
+        "action": "qualifyLead",
+        "input": "{{enrichedData}}"
+      },
+      "position": { "x": 700, "y": 200 }
+    },
+    {
+      "id": "code-1",
+      "type": "code",
+      "name": "Calculate Lead Score",
+      "parameters": {
+        "code": "const { budget, authority, need, timeline } = input.bant;\nconst { companySize, industry } = input.company;\n\nlet score = 0;\n\n// BANT scoring (max 60 points)\nscore += budget.score * 0.2;\nscore += authority.score * 0.15;\nscore += need.score * 0.15;\nscore += timeline.score * 0.1;\n\n// Company fit (max 30 points)\nif (companySize > 50) score += 15;\nelse if (companySize > 10) score += 10;\n\nif (['technology', 'saas', 'consulting'].includes(industry)) {\n  score += 15;\n}\n\n// Engagement (max 10 points)\nscore += input.engagement?.emailOpens * 2;\nscore += input.engagement?.websiteVisits * 1;\n\nreturn { \n  leadScore: Math.min(score, 100),\n  tier: score >= 80 ? 'hot' : score >= 60 ? 'warm' : 'cold'\n};"
+      },
+      "position": { "x": 900, "y": 200 }
+    },
+    {
+      "id": "conditional-1",
+      "type": "conditional",
+      "name": "High Score Lead?",
+      "parameters": {
+        "condition": "greaterThan",
+        "value1": "{{leadScore}}",
+        "value2": 70
+      },
+      "position": { "x": 1100, "y": 200 }
+    },
+    {
+      "id": "database-hot",
+      "type": "database",
+      "name": "Update as Hot Lead",
+      "parameters": {
+        "operation": "update",
+        "table": "leads",
+        "data": {
+          "score": "{{leadScore}}",
+          "tier": "hot",
+          "status": "qualified",
+          "assignTo": "sales-team"
+        }
+      },
+      "position": { "x": 1300, "y": 150 }
+    },
+    {
+      "id": "email-hot",
+      "type": "email",
+      "name": "Notify Sales Team",
+      "parameters": {
+        "to": "sales@company.com",
+        "subject": "🔥 Hot Lead: {{lead.company}}",
+        "template": "hot-lead-notification"
+      },
+      "position": { "x": 1500, "y": 150 }
+    },
+    {
+      "id": "database-cold",
+      "type": "database",
+      "name": "Add to Nurture Queue",
+      "parameters": {
+        "operation": "update",
+        "table": "leads",
+        "data": {
+          "score": "{{leadScore}}",
+          "tier": "{{tier}}",
+          "status": "nurture",
+          "nurtureCampaign": "general"
+        }
+      },
+      "position": { "x": 1300, "y": 250 }
+    },
+    {
+      "id": "workflow-trigger",
+      "type": "workflow-trigger",
+      "name": "Start Nurture Campaign",
+      "parameters": {
+        "workflowId": "workflow-email-001",
+        "data": "{{lead}}"
+      },
+      "position": { "x": 1500, "y": 250 }
+    }
+  ],
+  "connections": [
+    {
+      "source": "trigger-1",
+      "sourceOutput": "main",
+      "target": "ai-research-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "ai-research-1",
+      "sourceOutput": "main",
+      "target": "ai-research-2",
+      "targetInput": "main"
+    },
+    {
+      "source": "ai-research-2",
+      "sourceOutput": "main",
+      "target": "ai-sales-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "ai-sales-1",
+      "sourceOutput": "main",
+      "target": "code-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "code-1",
+      "sourceOutput": "main",
+      "target": "conditional-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "conditional-1",
+      "sourceOutput": "true",
+      "target": "database-hot",
+      "targetInput": "main"
+    },
+    {
+      "source": "database-hot",
+      "sourceOutput": "main",
+      "target": "email-hot",
+      "targetInput": "main"
+    },
+    {
+      "source": "conditional-1",
+      "sourceOutput": "false",
+      "target": "database-cold",
+      "targetInput": "main"
+    },
+    {
+      "source": "database-cold",
+      "sourceOutput": "main",
+      "target": "workflow-trigger",
+      "targetInput": "main"
+    }
+  ],
+  "settings": {
+    "errorHandling": "stopOnError",
+    "maxRetries": 3,
+    "retryDelay": 30000,
+    "timeout": 180000,
+    "saveExecutionData": true
+  },
+  "createdAt": "2025-01-15T00:00:00Z",
+  "updatedAt": "2025-01-15T00:00:00Z"
+}

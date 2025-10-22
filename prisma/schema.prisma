@@ -1,0 +1,408 @@
+// SuperSynergy Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+// ============================================
+// User Management
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(USER)
+
+  accounts      Account[]
+  sessions      Session[]
+
+  // Relations
+  ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
+  workspaceMembers WorkspaceMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ============================================
+// Workspace Management
+// ============================================
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  logo        String?
+  ownerId     String
+
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members     WorkspaceMember[]
+
+  // Relations
+  contacts    Contact[]
+  deals       Deal[]
+  workflows   Workflow[]
+  agents      AgentExecution[]
+
+  settings    Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        MemberRole @default(MEMBER)
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// ============================================
+// CRM - Contacts & Companies
+// ============================================
+
+model Contact {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  // Basic Information
+  firstName   String
+  lastName    String?
+  email       String
+  phone       String?
+  company     String?
+  title       String?
+
+  // Enrichment Data
+  linkedinUrl String?
+  twitterUrl  String?
+  website     String?
+
+  // Scoring & Qualification
+  score       Int      @default(0)
+  tier        ContactTier @default(COLD)
+  status      ContactStatus @default(NEW)
+
+  // BANT Qualification
+  budget      String?
+  authority   String?
+  need        String?
+  timeline    String?
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals       Deal[]
+  activities  Activity[]
+
+  // Metadata
+  tags        String[]
+  customFields Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, status])
+  @@index([workspaceId, score])
+  @@map("contacts")
+}
+
+enum ContactTier {
+  HOT
+  WARM
+  COLD
+}
+
+enum ContactStatus {
+  NEW
+  QUALIFIED
+  NURTURE
+  OPPORTUNITY
+  CUSTOMER
+  LOST
+}
+
+// ============================================
+// CRM - Deals & Pipeline
+// ============================================
+
+model Deal {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contactId   String
+
+  name        String
+  value       Float
+  currency    String   @default("EUR")
+
+  stage       DealStage @default(DISCOVERY)
+  probability Int      @default(0)
+
+  expectedCloseDate DateTime?
+  actualCloseDate   DateTime?
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact   @relation(fields: [contactId], references: [id])
+  activities  Activity[]
+
+  // Metadata
+  notes       String?
+  tags        String[]
+  customFields Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, stage])
+  @@map("deals")
+}
+
+enum DealStage {
+  DISCOVERY
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+// ============================================
+// Activity Tracking
+// ============================================
+
+model Activity {
+  id          String   @id @default(cuid())
+  contactId   String
+  dealId      String?
+
+  type        ActivityType
+  title       String
+  description String?
+
+  scheduledAt DateTime?
+  completedAt DateTime?
+
+  // Relations
+  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal        Deal?    @relation(fields: [dealId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contactId])
+  @@map("activities")
+}
+
+enum ActivityType {
+  EMAIL
+  CALL
+  MEETING
+  TASK
+  NOTE
+  SMS
+}
+
+// ============================================
+// Workflow System
+// ============================================
+
+model Workflow {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  name        String
+  description String?
+  category    String
+
+  active      Boolean  @default(false)
+
+  definition  Json     // Workflow nodes and connections
+  settings    Json?
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  executions  WorkflowExecution[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, active])
+  @@map("workflows")
+}
+
+model WorkflowExecution {
+  id          String   @id @default(cuid())
+  workflowId  String
+
+  status      ExecutionStatus
+
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  input       Json?
+  output      Json?
+  error       String?
+
+  nodeExecutions Json? // Array of node executions
+
+  // Relations
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, status])
+  @@map("workflow_executions")
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  ERROR
+  CANCELLED
+}
+
+// ============================================
+// AI Agent System
+// ============================================
+
+model AgentExecution {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  agentType   String
+  action      String
+
+  input       Json
+  output      Json?
+
+  status      ExecutionStatus
+
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  executionTime Int? // in milliseconds
+
+  error       String?
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, agentType])
+  @@index([workspaceId, status])
+  @@map("agent_executions")
+}
+
+// ============================================
+// Vector Store (for RAG)
+// ============================================
+
+model Document {
+  id          String   @id @default(cuid())
+  workspaceId String?
+
+  content     String
+  metadata    Json?
+
+  // Vector embedding (requires pgvector extension)
+  embedding   Unsupported("vector(1536)")?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("documents")
+}
+
+// ============================================
+// Audit Log (DSGVO Compliance)
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String?
+
+  action      String
+  resource    String
+  resourceId  String?
+
+  details     Json?
+
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

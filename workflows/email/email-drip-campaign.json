@@ -1,0 +1,225 @@
+{
+  "id": "workflow-email-001",
+  "name": "Email Drip Campaign",
+  "description": "Automated 5-day email drip campaign for new leads",
+  "category": "email-marketing",
+  "active": true,
+  "nodes": [
+    {
+      "id": "trigger-1",
+      "type": "trigger",
+      "name": "New Lead Added",
+      "parameters": {
+        "triggerType": "webhook",
+        "path": "/webhook/new-lead"
+      },
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "id": "ai-1",
+      "type": "ai-agent",
+      "name": "Personalize Email Content",
+      "parameters": {
+        "agentType": "communication",
+        "prompt": "Personalize this email based on lead data",
+        "temperature": 0.7
+      },
+      "position": { "x": 300, "y": 100 }
+    },
+    {
+      "id": "email-1",
+      "type": "email",
+      "name": "Day 1: Welcome Email",
+      "parameters": {
+        "to": "{{lead.email}}",
+        "subject": "Welcome to SuperSynergy!",
+        "template": "welcome-email",
+        "delay": 0
+      },
+      "position": { "x": 500, "y": 100 }
+    },
+    {
+      "id": "wait-1",
+      "type": "wait",
+      "name": "Wait 24 hours",
+      "parameters": {
+        "duration": 86400
+      },
+      "position": { "x": 700, "y": 100 }
+    },
+    {
+      "id": "email-2",
+      "type": "email",
+      "name": "Day 2: Value Proposition",
+      "parameters": {
+        "to": "{{lead.email}}",
+        "subject": "How SuperSynergy Can Help You",
+        "template": "value-proposition",
+        "delay": 0
+      },
+      "position": { "x": 500, "y": 250 }
+    },
+    {
+      "id": "wait-2",
+      "type": "wait",
+      "name": "Wait 24 hours",
+      "parameters": {
+        "duration": 86400
+      },
+      "position": { "x": 700, "y": 250 }
+    },
+    {
+      "id": "email-3",
+      "type": "email",
+      "name": "Day 3: Case Study",
+      "parameters": {
+        "to": "{{lead.email}}",
+        "subject": "See How [Company] Increased Revenue by 40%",
+        "template": "case-study",
+        "delay": 0
+      },
+      "position": { "x": 500, "y": 400 }
+    },
+    {
+      "id": "wait-3",
+      "type": "wait",
+      "name": "Wait 48 hours",
+      "parameters": {
+        "duration": 172800
+      },
+      "position": { "x": 700, "y": 400 }
+    },
+    {
+      "id": "conditional-1",
+      "type": "conditional",
+      "name": "Opened Any Email?",
+      "parameters": {
+        "condition": "greaterThan",
+        "value1": "{{lead.emailOpens}}",
+        "value2": 0
+      },
+      "position": { "x": 900, "y": 400 }
+    },
+    {
+      "id": "email-4",
+      "type": "email",
+      "name": "Day 5: Book a Demo",
+      "parameters": {
+        "to": "{{lead.email}}",
+        "subject": "Ready to see SuperSynergy in action?",
+        "template": "book-demo",
+        "delay": 0
+      },
+      "position": { "x": 1100, "y": 350 }
+    },
+    {
+      "id": "email-5",
+      "type": "email",
+      "name": "Day 5: Re-engagement",
+      "parameters": {
+        "to": "{{lead.email}}",
+        "subject": "Have questions about automation?",
+        "template": "re-engagement",
+        "delay": 0
+      },
+      "position": { "x": 1100, "y": 450 }
+    },
+    {
+      "id": "database-1",
+      "type": "database",
+      "name": "Update Lead Status",
+      "parameters": {
+        "operation": "update",
+        "table": "leads",
+        "data": {
+          "status": "drip_completed",
+          "lastContact": "{{now}}"
+        }
+      },
+      "position": { "x": 1300, "y": 400 }
+    }
+  ],
+  "connections": [
+    {
+      "source": "trigger-1",
+      "sourceOutput": "main",
+      "target": "ai-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "ai-1",
+      "sourceOutput": "main",
+      "target": "email-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "email-1",
+      "sourceOutput": "main",
+      "target": "wait-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "wait-1",
+      "sourceOutput": "main",
+      "target": "email-2",
+      "targetInput": "main"
+    },
+    {
+      "source": "email-2",
+      "sourceOutput": "main",
+      "target": "wait-2",
+      "targetInput": "main"
+    },
+    {
+      "source": "wait-2",
+      "sourceOutput": "main",
+      "target": "email-3",
+      "targetInput": "main"
+    },
+    {
+      "source": "email-3",
+      "sourceOutput": "main",
+      "target": "wait-3",
+      "targetInput": "main"
+    },
+    {
+      "source": "wait-3",
+      "sourceOutput": "main",
+      "target": "conditional-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "conditional-1",
+      "sourceOutput": "true",
+      "target": "email-4",
+      "targetInput": "main"
+    },
+    {
+      "source": "conditional-1",
+      "sourceOutput": "false",
+      "target": "email-5",
+      "targetInput": "main"
+    },
+    {
+      "source": "email-4",
+      "sourceOutput": "main",
+      "target": "database-1",
+      "targetInput": "main"
+    },
+    {
+      "source": "email-5",
+      "sourceOutput": "main",
+      "target": "database-1",
+      "targetInput": "main"
+    }
+  ],
+  "settings": {
+    "errorHandling": "continueOnError",
+    "maxRetries": 3,
+    "retryDelay": 60000,
+    "timeout": 300000,
+    "saveExecutionData": true
+  },
+  "createdAt": "2025-01-15T00:00:00Z",
+  "updatedAt": "2025-01-15T00:00:00Z"
+}
