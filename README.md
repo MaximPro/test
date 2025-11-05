@@ -199,6 +199,38 @@ keys for Stripe, and use a sandbox Chec public API key to test with Stripe. Both
 "publishable" key are configured in the `.env` file. See step two of 
 "[Manual setup and Netlify deployment](#manual-setup-and-netlify-deployment)"
 
+## GitHub Repository Management
+
+This project includes a convenient script for creating new GitHub repositories directly from the command line.
+
+### Creating a New Repository
+
+1. **Get a GitHub Personal Access Token**:
+   - Visit: https://github.com/settings/tokens
+   - Click "Generate new token (classic)"
+   - Select the `repo` scope
+   - Copy the generated token
+
+2. **Set up your environment**:
+   ```bash
+   # Add to your .env file
+   GITHUB_TOKEN=your_token_here
+   ```
+
+3. **Create a repository**:
+   ```bash
+   # Using npm script
+   npm run create-repo my-new-repo -- --description "My awesome project"
+
+   # Using the bash wrapper (loads .env automatically)
+   ./scripts/create-repo.sh my-new-repo --description "My project"
+
+   # Create a private repository
+   npm run create-repo my-private-repo -- --private --description "Secret project"
+   ```
+
+For detailed documentation, see [scripts/README.md](scripts/README.md).
+
 ## Customization and Extendability
 
 Fork this project to customize and extend the demo however you want. Here are some ideas of what you can do and
